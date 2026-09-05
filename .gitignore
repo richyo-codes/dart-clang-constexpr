@@ -2,3 +2,4 @@
 /build-wasm/
 /build-host-tools/
 /build-wasm-llvm/
+/dist/

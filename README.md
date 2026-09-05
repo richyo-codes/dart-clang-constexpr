@@ -26,6 +26,22 @@ Try an expression:
 The C API exposes separate C23 and C++20 modes. C++ is the default for backward
 compatibility; callers can use `pcalc_constexpr_evaluate_language` to select C.
 
+## Native library
+
+The same C ABI is available as a shared library for Dart FFI and other hosts:
+
+```bash
+cmake -S . -B build-native -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DLLVM_DIR=/usr/lib64/llvm22/lib64/cmake/llvm \
+  -DClang_DIR=/usr/lib64/llvm22/lib64/cmake/clang
+cmake --build build-native
+cmake --install build-native --prefix dist
+```
+
+Consumers should use only `include/pcalc_constexpr/evaluator.h`. Clang and LLVM
+remain implementation details of the library.
+
 ## WASM direction
 
 The evaluator uses a direct `CompilerInstance` with an in-memory source buffer.

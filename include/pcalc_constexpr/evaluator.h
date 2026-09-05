@@ -3,6 +3,18 @@
 
 #include <stdint.h>
 
+#if defined(_WIN32)
+#if defined(PCALC_CONSTEXPR_BUILDING_LIBRARY)
+#define PCALC_CONSTEXPR_API __declspec(dllexport)
+#else
+#define PCALC_CONSTEXPR_API __declspec(dllimport)
+#endif
+#elif defined(__GNUC__)
+#define PCALC_CONSTEXPR_API __attribute__((visibility("default")))
+#else
+#define PCALC_CONSTEXPR_API
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,15 +43,15 @@ typedef struct pcalc_constexpr_result {
   char error_message[1024];
 } pcalc_constexpr_result;
 
-int32_t pcalc_constexpr_evaluate(const char *expression,
-                                 uint32_t expression_length,
-                                 pcalc_constexpr_result *result);
+PCALC_CONSTEXPR_API int32_t
+pcalc_constexpr_evaluate(const char *expression, uint32_t expression_length,
+                         pcalc_constexpr_result *result);
 
-int32_t pcalc_constexpr_evaluate_language(
+PCALC_CONSTEXPR_API int32_t pcalc_constexpr_evaluate_language(
     int32_t language, const char *expression, uint32_t expression_length,
     pcalc_constexpr_result *result);
 
-uint32_t pcalc_constexpr_result_size(void);
+PCALC_CONSTEXPR_API uint32_t pcalc_constexpr_result_size(void);
 
 #ifdef __cplusplus
 }
