@@ -49,8 +49,8 @@ remain implementation details of the library.
 The repository is also a Dart Native Assets package. On Linux, `dart test` or
 a consuming Flutter build invokes CMake and bundles the resulting shared
 library. Set `LLVM_DIR` and `Clang_DIR` when CMake cannot discover the desired
-installation automatically. Other native targets deliberately fail until a
-matching cross-compiled LLVM/Clang toolchain is provided.
+installation automatically. Other native targets omit this optional backend
+until a matching cross-compiled LLVM/Clang toolchain is provided.
 
 ## WASM direction
 

@@ -16,9 +16,7 @@ Future<void> main(List<String> args) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets) return;
     if (input.config.code.targetOS != OS.linux) {
-      throw UnsupportedError(
-        'pcalc_clang_constexpr currently supports Linux native builds only.',
-      );
+      return;
     }
 
     final buildDirectory = input.outputDirectoryShared.resolve('cmake/');
