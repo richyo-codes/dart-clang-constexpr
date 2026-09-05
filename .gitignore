@@ -1,0 +1,4 @@
+/build/
+/build-wasm/
+/build-host-tools/
+/build-wasm-llvm/
