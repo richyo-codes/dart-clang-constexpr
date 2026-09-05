@@ -2,4 +2,6 @@
 /build-wasm/
 /build-host-tools/
 /build-wasm-llvm/
+/build-native/
 /dist/
+/.dart_tool/
