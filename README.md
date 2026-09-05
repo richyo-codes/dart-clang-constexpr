@@ -2,6 +2,8 @@
 
 Experimental typed C++ constant-expression evaluator for pcalc express.
 
+Licensed under the MIT License. LLVM and Clang retain their upstream licenses.
+
 The native proof parses an in-memory synthetic `constexpr auto` declaration,
 validates its AST against a calculator subset, and evaluates it through
 Clang's public `Expr::EvaluateAsConstantExpr` API. It does not use Cling,
