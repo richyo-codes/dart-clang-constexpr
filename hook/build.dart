@@ -42,6 +42,14 @@ Future<void> main(List<String> args) async {
     }
 
     final buildDirectory = input.outputDirectoryShared.resolve('cmake/');
+    final cacheFile = File.fromUri(buildDirectory.resolve('CMakeCache.txt'));
+    if (cacheFile.existsSync()) {
+      final sourceDirectory = input.packageRoot.toFilePath();
+      final cache = cacheFile.readAsStringSync();
+      if (!cache.contains('CMAKE_HOME_DIRECTORY:INTERNAL=$sourceDirectory')) {
+        await Directory.fromUri(buildDirectory).delete(recursive: true);
+      }
+    }
     final library = buildDirectory.resolve('libpcalc_clang_constexpr.so');
     await Directory.fromUri(buildDirectory).create(recursive: true);
 
