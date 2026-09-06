@@ -3,5 +3,7 @@
 /build-host-tools/
 /build-wasm-llvm/
 /build-native/
+/build-android-llvm/
+/build-android-evaluator/
 /dist/
 /.dart_tool/

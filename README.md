@@ -52,6 +52,19 @@ library. Set `LLVM_DIR` and `Clang_DIR` when CMake cannot discover the desired
 installation automatically. Other native targets omit this optional backend
 until a matching cross-compiled LLVM/Clang toolchain is provided.
 
+### Android arm64
+
+`scripts/build_android_arm64.sh` cross-builds Clang and the evaluator against
+the Android NDK. It requires a matching LLVM source checkout plus host
+`llvm-tblgen` and `clang-tblgen` binaries. The defaults match this development
+environment and can be overridden with `LLVM_PROJECT_DIR`, `ANDROID_NDK_HOME`,
+and `HOST_TOOLS_DIR`.
+
+The initial static-link proof produces a 44 MB stripped arm64 shared library
+(about 15.2 MB gzip). It has no LLVM/Clang dynamic dependency, but is too large
+to enable by default in a mobile calculator. It is a reproducible baseline for
+link-map analysis and feature trimming, not yet a release artifact.
+
 ## WASM direction
 
 The evaluator uses a direct `CompilerInstance` with an in-memory source buffer.
