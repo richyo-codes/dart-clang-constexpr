@@ -8,6 +8,7 @@ ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-/home/ry/Android/Sdk/ndk/29.0.14033849}
 HOST_TOOLS_DIR=${HOST_TOOLS_DIR:-$PROJECT_DIR/build-host-tools}
 LLVM_BUILD_DIR=${LLVM_BUILD_DIR:-$PROJECT_DIR/build-android-llvm}
 EVALUATOR_BUILD_DIR=${EVALUATOR_BUILD_DIR:-$PROJECT_DIR/build-android-evaluator}
+BUILD_JOBS=${BUILD_JOBS:-4}
 
 for required_path in \
   "$LLVM_PROJECT_DIR/llvm/CMakeLists.txt" \
@@ -41,9 +42,10 @@ cmake -S "$LLVM_PROJECT_DIR/llvm" -B "$LLVM_BUILD_DIR" -G Ninja \
   -DCLANG_INCLUDE_TESTS=OFF \
   -DLLVM_BUILD_TOOLS=OFF \
   -DCLANG_BUILD_TOOLS=OFF \
-  -DLLVM_ENABLE_PIC=ON
+  -DLLVM_ENABLE_PIC=ON \
+  -DLLVM_ENABLE_LTO=Thin
 
-cmake --build "$LLVM_BUILD_DIR" --target clangFrontend
+cmake --build "$LLVM_BUILD_DIR" --target clangFrontend --parallel "$BUILD_JOBS"
 
 cmake -S "$PROJECT_DIR" -B "$EVALUATOR_BUILD_DIR" -G Ninja \
   -DCMAKE_BUILD_TYPE=MinSizeRel \
@@ -52,11 +54,15 @@ cmake -S "$PROJECT_DIR" -B "$EVALUATOR_BUILD_DIR" -G Ninja \
   -DANDROID_PLATFORM=android-26 \
   -DLLVM_DIR="$LLVM_BUILD_DIR/lib/cmake/llvm" \
   -DClang_DIR="$LLVM_BUILD_DIR/lib/cmake/clang" \
-  -DPCALC_CONSTEXPR_BUILD_SHARED=ON
+  -DPCALC_CONSTEXPR_BUILD_SHARED=ON \
+  -DPCALC_CONSTEXPR_ENABLE_IPO=ON \
+  -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--gc-sections,-Map=$EVALUATOR_BUILD_DIR/pcalc-clang-constexpr.map"
 
-cmake --build "$EVALUATOR_BUILD_DIR" --target pcalc_clang_constexpr
+cmake --build "$EVALUATOR_BUILD_DIR" --target pcalc_clang_constexpr --parallel "$BUILD_JOBS"
 
 LIBRARY="$EVALUATOR_BUILD_DIR/libpcalc_clang_constexpr.so"
 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" \
   --strip-unneeded "$LIBRARY"
 echo "Built Android arm64 evaluator: $LIBRARY"
+echo "Stripped size: $(stat -c %s "$LIBRARY") bytes"
+echo "Gzip size: $(gzip -9 -c "$LIBRARY" | wc -c) bytes"

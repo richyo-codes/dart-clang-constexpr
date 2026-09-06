@@ -4,6 +4,7 @@ project(pcalc_clang_constexpr LANGUAGES C CXX)
 include(GNUInstallDirs)
 
 option(PCALC_CONSTEXPR_BUILD_SHARED "Build the C ABI as a shared library" ON)
+option(PCALC_CONSTEXPR_ENABLE_IPO "Enable interprocedural optimization" OFF)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +26,14 @@ set_target_properties(pcalc_clang_constexpr PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN YES
 )
+if(PCALC_CONSTEXPR_ENABLE_IPO)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT PCALC_CONSTEXPR_IPO_SUPPORTED OUTPUT PCALC_CONSTEXPR_IPO_ERROR)
+  if(NOT PCALC_CONSTEXPR_IPO_SUPPORTED)
+    message(FATAL_ERROR "IPO is unavailable: ${PCALC_CONSTEXPR_IPO_ERROR}")
+  endif()
+  set_property(TARGET pcalc_clang_constexpr PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
 
 target_include_directories(pcalc_clang_constexpr
   PUBLIC include
@@ -33,9 +42,14 @@ target_include_directories(pcalc_clang_constexpr
 
 target_compile_definitions(pcalc_clang_constexpr PRIVATE ${LLVM_DEFINITIONS})
 target_compile_definitions(pcalc_clang_constexpr PRIVATE PCALC_CONSTEXPR_BUILDING_LIBRARY)
+if(NOT LLVM_ENABLE_RTTI)
+  target_compile_options(pcalc_clang_constexpr PRIVATE -fno-rtti)
+endif()
+if(NOT LLVM_ENABLE_EH)
+  target_compile_options(pcalc_clang_constexpr PRIVATE -fno-exceptions)
+endif()
 if(TARGET clangFrontend)
   target_link_libraries(pcalc_clang_constexpr PUBLIC
-    clangFrontend
     clangParse
     clangSema
     clangAST

@@ -60,14 +60,18 @@ the Android NDK. It requires a matching LLVM source checkout plus host
 environment and can be overridden with `LLVM_PROJECT_DIR`, `ANDROID_NDK_HOME`,
 and `HOST_TOOLS_DIR`.
 
-The initial static-link proof produces a 44 MB stripped arm64 shared library
-(about 15.2 MB gzip). It has no LLVM/Clang dynamic dependency, but is too large
-to enable by default in a mobile calculator. It is a reproducible baseline for
-link-map analysis and feature trimming, not yet a release artifact.
+The initial `CompilerInstance` proof produced a 44,265,208-byte stripped arm64
+shared library (15,255,887 bytes gzip). The direct parser/Sema implementation,
+ThinLTO, and wrapper IPO reduce that to 40,601,288 bytes stripped (14,007,134
+bytes gzip). It has no LLVM/Clang dynamic dependency, but is still too large to
+enable by default in a mobile calculator. Full Sema and AST are now the dominant
+size floor; further trimming must reduce their source-level feature set rather
+than merely changing linker flags.
 
 ## WASM direction
 
-The evaluator uses a direct `CompilerInstance` with an in-memory source buffer.
-It avoids `clangTooling`, the Clang driver, CodeGen, and JIT dependencies. The
-WASM build will measure the dead-stripped parser/Sema/AST artifact before any
-source extraction is attempted.
+The evaluator constructs Clang's diagnostics, source manager, preprocessor,
+AST context, parser, and Sema directly around an in-memory source buffer. It
+avoids `CompilerInstance`, serialization/modules/PCH, `clangTooling`, the Clang
+driver, CodeGen, and JIT dependencies. The WASM build will measure this
+dead-stripped parser/Sema/AST artifact before any source extraction is attempted.

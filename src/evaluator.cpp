@@ -8,13 +8,22 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
-#include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/CompilerInvocation.h"
-#include "clang/Frontend/TextDiagnosticBuffer.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/LangOptions.h"
+#include "clang/Basic/SourceManager.h"
+#include "clang/Basic/TargetInfo.h"
+#include "clang/Basic/TargetOptions.h"
+#include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/HeaderSearchOptions.h"
+#include "clang/Lex/ModuleLoader.h"
+#include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Parse/ParseAST.h"
+#include "clang/Sema/Sema.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <algorithm>
 #include <cstring>
@@ -73,77 +82,117 @@ clang::VarDecl *findResult(clang::ASTContext &context) {
   return nullptr;
 }
 
-bool parseTranslationUnit(const std::string &source, bool is_cxx,
-                          clang::TextDiagnosticBuffer &diagnostics,
-                          clang::CompilerInstance &compiler) {
-  std::vector<std::string> argument_storage = {
-      "-x",
-      is_cxx ? "c++" : "c",
-      is_cxx ? "-std=c++20" : "-std=c23",
-      "-fsyntax-only",
-      "-fexperimental-new-constant-interpreter",
-      "-fconstexpr-steps=100000",
-      "-triple",
-      "wasm32-unknown-unknown"};
-  std::vector<const char *> arguments;
-  arguments.reserve(argument_storage.size());
-  for (const std::string &argument : argument_storage)
-    arguments.push_back(argument.c_str());
-
-  auto filesystem = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
-  auto diagnostic_options = std::make_shared<clang::DiagnosticOptions>();
-  auto diagnostic_engine = clang::CompilerInstance::createDiagnostics(
-      *filesystem, *diagnostic_options, &diagnostics, false);
-  if (!clang::CompilerInvocation::CreateFromArgs(
-          compiler.getInvocation(), arguments, *diagnostic_engine,
-          "pcalc-constexpr"))
-    return false;
-
-  compiler.setVirtualFileSystem(filesystem);
-  compiler.setDiagnostics(diagnostic_engine);
-  if (!compiler.createTarget())
-    return false;
-  compiler.createFileManager();
-  compiler.createSourceManager();
-  auto buffer = llvm::MemoryBuffer::getMemBufferCopy(
-      source, is_cxx ? "pcalc_expression.cc" : "pcalc_expression.c");
-  compiler.getSourceManager().setMainFileID(
-      compiler.getSourceManager().createFileID(std::move(buffer)));
-  compiler.createPreprocessor(clang::TU_Complete);
-  compiler.createASTContext();
-  clang::ASTConsumer consumer;
-  clang::ParseAST(compiler.getPreprocessor(), &consumer,
-                  compiler.getASTContext(), false, clang::TU_Complete);
-  return diagnostics.getNumErrors() == 0;
-}
-
-std::string diagnosticsText(clang::TextDiagnosticBuffer &diagnostics) {
-  std::string result;
-  for (auto entry = diagnostics.err_begin(); entry != diagnostics.err_end();
-       ++entry) {
-    if (!result.empty())
-      result += " | ";
-    result += entry->second;
+class DiagnosticCollector : public clang::DiagnosticConsumer {
+public:
+  void HandleDiagnostic(clang::DiagnosticsEngine::Level level,
+                        const clang::Diagnostic &diagnostic) override {
+    clang::DiagnosticConsumer::HandleDiagnostic(level, diagnostic);
+    if (level < clang::DiagnosticsEngine::Error)
+      return;
+    llvm::SmallString<256> message;
+    diagnostic.FormatDiagnostic(message);
+    if (!text_.empty())
+      text_ += " | ";
+    text_ += std::string(message);
   }
-  return result.empty() ? "expression could not be parsed" : result;
-}
+
+  std::string text() const {
+    return text_.empty() ? "expression could not be parsed" : text_;
+  }
+
+private:
+  std::string text_;
+};
+
+class ParsedTranslationUnit {
+public:
+  ParsedTranslationUnit(const std::string &source, bool is_cxx)
+      : filesystem_(llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>()),
+        file_manager_(clang::FileSystemOptions(), filesystem_),
+        diagnostics_(clang::DiagnosticIDs::create(), diagnostic_options_,
+                     &diagnostic_collector_, false),
+        source_manager_(diagnostics_, file_manager_) {
+    target_options_ = std::make_shared<clang::TargetOptions>();
+    target_options_->Triple = "wasm32-unknown-unknown";
+    target_ =
+        clang::TargetInfo::CreateTargetInfo(diagnostics_, *target_options_);
+    if (!target_)
+      return;
+
+    std::vector<std::string> includes;
+    const llvm::Triple triple(target_options_->Triple);
+    clang::LangOptions::setLangDefaults(
+        language_options_, is_cxx ? clang::Language::CXX : clang::Language::C,
+        triple, includes,
+        is_cxx ? clang::LangStandard::lang_cxx20
+               : clang::LangStandard::lang_c23);
+    language_options_.EnableNewConstInterp = true;
+    language_options_.ConstexprStepLimit = 100000;
+
+    auto buffer = llvm::MemoryBuffer::getMemBufferCopy(
+        source, is_cxx ? "pcalc_expression.cc" : "pcalc_expression.c");
+    source_manager_.setMainFileID(
+        source_manager_.createFileID(std::move(buffer)));
+
+    header_search_ = std::make_unique<clang::HeaderSearch>(
+        header_search_options_, source_manager_, diagnostics_,
+        language_options_, target_.get());
+    preprocessor_ = std::make_unique<clang::Preprocessor>(
+        preprocessor_options_, diagnostics_, language_options_, source_manager_,
+        *header_search_, module_loader_);
+    preprocessor_->Initialize(*target_);
+    context_ = std::make_unique<clang::ASTContext>(
+        language_options_, source_manager_, preprocessor_->getIdentifierTable(),
+        preprocessor_->getSelectorTable(), preprocessor_->getBuiltinInfo(),
+        clang::TU_Complete);
+    context_->InitBuiltinTypes(*target_);
+    sema_ = std::make_unique<clang::Sema>(*preprocessor_, *context_, consumer_);
+    clang::ParseAST(*sema_, false, false);
+    valid_ = diagnostics_.getNumErrors() == 0;
+  }
+
+  clang::ASTContext &context() { return *context_; }
+  std::string diagnosticsText() const { return diagnostic_collector_.text(); }
+  bool valid() const { return valid_; }
+
+private:
+  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> filesystem_;
+  clang::FileManager file_manager_;
+  clang::DiagnosticOptions diagnostic_options_;
+  DiagnosticCollector diagnostic_collector_;
+  clang::DiagnosticsEngine diagnostics_;
+  clang::SourceManager source_manager_;
+  std::shared_ptr<clang::TargetOptions> target_options_;
+  llvm::IntrusiveRefCntPtr<clang::TargetInfo> target_;
+  clang::LangOptions language_options_;
+  clang::HeaderSearchOptions header_search_options_;
+  clang::PreprocessorOptions preprocessor_options_;
+  clang::TrivialModuleLoader module_loader_;
+  clang::ASTConsumer consumer_;
+  std::unique_ptr<clang::HeaderSearch> header_search_;
+  std::unique_ptr<clang::Preprocessor> preprocessor_;
+  std::unique_ptr<clang::ASTContext> context_;
+  std::unique_ptr<clang::Sema> sema_;
+  bool valid_ = false;
+};
 
 } // namespace
 
-extern "C" int32_t pcalc_constexpr_evaluate(
-    const char *expression, uint32_t expression_length,
-    pcalc_constexpr_result *result) {
-  return pcalc_constexpr_evaluate_language(
-      PCALC_CONSTEXPR_CXX, expression, expression_length, result);
+extern "C" int32_t pcalc_constexpr_evaluate(const char *expression,
+                                            uint32_t expression_length,
+                                            pcalc_constexpr_result *result) {
+  return pcalc_constexpr_evaluate_language(PCALC_CONSTEXPR_CXX, expression,
+                                           expression_length, result);
 }
 
 extern "C" uint32_t pcalc_constexpr_result_size(void) {
   return sizeof(pcalc_constexpr_result);
 }
 
-extern "C" int32_t pcalc_constexpr_evaluate_language(
-    int32_t language, const char *expression, uint32_t expression_length,
-    pcalc_constexpr_result *result) {
+extern "C" int32_t
+pcalc_constexpr_evaluate_language(int32_t language, const char *expression,
+                                  uint32_t expression_length,
+                                  pcalc_constexpr_result *result) {
   if (!result)
     return 1;
   std::memset(result, 0, sizeof(*result));
@@ -154,7 +203,8 @@ extern "C" int32_t pcalc_constexpr_evaluate_language(
 
   const std::string input(expression, expression_length);
   if (hasForbiddenSourceText(input)) {
-    fail(*result, "declarations, directives, and statement syntax are not allowed");
+    fail(*result,
+         "declarations, directives, and statement syntax are not allowed");
     return result->status;
   }
 
@@ -164,29 +214,29 @@ extern "C" int32_t pcalc_constexpr_evaluate_language(
   }
 
   const bool is_cxx = language == PCALC_CONSTEXPR_CXX;
-  const std::string aliases = is_cxx
-      ? "using int8_t = signed char; using uint8_t = unsigned char; "
-        "using int16_t = short; using uint16_t = unsigned short; "
-        "using int32_t = int; using uint32_t = unsigned int; "
-        "using int64_t = long long; using uint64_t = unsigned long long; "
-      : "typedef signed char int8_t; typedef unsigned char uint8_t; "
-        "typedef short int16_t; typedef unsigned short uint16_t; "
-        "typedef int int32_t; typedef unsigned int uint32_t; "
-        "typedef long long int64_t; typedef unsigned long long uint64_t; ";
-  const std::string declaration = is_cxx
-      ? "constexpr auto __pcalc_result = (" + input + ");"
-      : "static const __typeof__((" + input + ")) __pcalc_result = (" +
-            input + ");";
+  const std::string aliases =
+      is_cxx
+          ? "using int8_t = signed char; using uint8_t = unsigned char; "
+            "using int16_t = short; using uint16_t = unsigned short; "
+            "using int32_t = int; using uint32_t = unsigned int; "
+            "using int64_t = long long; using uint64_t = unsigned long long; "
+          : "typedef signed char int8_t; typedef unsigned char uint8_t; "
+            "typedef short int16_t; typedef unsigned short uint16_t; "
+            "typedef int int32_t; typedef unsigned int uint32_t; "
+            "typedef long long int64_t; typedef unsigned long long uint64_t; ";
+  const std::string declaration =
+      is_cxx ? "constexpr auto __pcalc_result = (" + input + ");"
+             : "static const __typeof__((" + input + ")) __pcalc_result = (" +
+                   input + ");";
   const std::string source = aliases + declaration;
 
-  clang::TextDiagnosticBuffer diagnostics;
-  clang::CompilerInstance compiler;
-  if (!parseTranslationUnit(source, is_cxx, diagnostics, compiler)) {
-    fail(*result, diagnosticsText(diagnostics));
+  ParsedTranslationUnit translation_unit(source, is_cxx);
+  if (!translation_unit.valid()) {
+    fail(*result, translation_unit.diagnosticsText());
     return result->status;
   }
 
-  clang::ASTContext &context = compiler.getASTContext();
+  clang::ASTContext &context = translation_unit.context();
   clang::VarDecl *variable = findResult(context);
   if (!variable || !variable->hasInit()) {
     fail(*result, "internal error: result expression was not found");
