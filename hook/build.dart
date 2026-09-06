@@ -15,7 +15,29 @@ Future<void> _run(String executable, List<String> arguments) async {
 Future<void> main(List<String> args) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets) return;
-    if (input.config.code.targetOS != OS.linux) {
+    final code = input.config.code;
+    if (code.targetOS == OS.android) {
+      final abi = _androidAbi(code.targetArchitecture);
+      if (abi == null) return;
+
+      final library = File.fromUri(
+        input.packageRoot.resolve(
+          'native/android/$abi/libpcalc_clang_constexpr.so',
+        ),
+      );
+      if (!library.existsSync()) return;
+
+      output.assets.code.add(
+        CodeAsset(
+          package: input.packageName,
+          name: 'pcalc_clang_constexpr',
+          linkMode: DynamicLoadingBundled(),
+          file: library.uri,
+        ),
+      );
+      return;
+    }
+    if (code.targetOS != OS.linux) {
       return;
     }
 
@@ -55,4 +77,13 @@ Future<void> main(List<String> args) async {
       ),
     );
   });
+}
+
+String? _androidAbi(Architecture architecture) {
+  switch (architecture) {
+    case Architecture.arm64:
+      return 'arm64-v8a';
+    default:
+      return null;
+  }
 }
