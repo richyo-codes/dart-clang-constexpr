@@ -4,12 +4,12 @@ version: 0.1.0
 publish_to: none
 
 environment:
-  sdk: ^3.10.0
+  sdk: ^3.13.0
 
 dependencies:
-  code_assets: 1.0.0
+  code_assets: ^2.0.0
   ffi: ^2.1.4
-  hooks: 1.0.3
+  hooks: ^2.2.0
 
 dev_dependencies:
   test: ^1.26.3
