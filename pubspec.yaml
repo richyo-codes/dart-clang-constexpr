@@ -12,4 +12,12 @@ dependencies:
   hooks: ^2.2.0
 
 dev_dependencies:
+  flutter_test:
+    sdk: flutter
   test: ^1.26.3
+
+flutter:
+  assets:
+    - lib/pcalc_clang_constexpr.js
+    - lib/pcalc_clang_constexpr.wasm
+    - lib/pcalc_clang_constexpr_loader.js

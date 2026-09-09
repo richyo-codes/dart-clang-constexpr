@@ -69,10 +69,26 @@ enable by default in a mobile calculator. Full Sema and AST are now the dominant
 size floor; further trimming must reduce their source-level feature set rather
 than merely changing linker flags.
 
-## WASM direction
+## WebAssembly
 
 The evaluator constructs Clang's diagnostics, source manager, preprocessor,
 AST context, parser, and Sema directly around an in-memory source buffer. It
 avoids `CompilerInstance`, serialization/modules/PCH, `clangTooling`, the Clang
-driver, CodeGen, and JIT dependencies. The WASM build will measure this
-dead-stripped parser/Sema/AST artifact before any source extraction is attempted.
+driver, CodeGen, and JIT dependencies.
+
+The package includes a prebuilt Emscripten module plus a browser-safe Dart
+backend. On web, call and await `initializeClangConstexpr()` before calling
+`evaluateClangExpression`; native platforms complete initialization immediately.
+The public result API is the same on web and native targets.
+
+After sourcing Emscripten and setting `LLVM_DIR` and `Clang_DIR` to the
+cross-built CMake packages, rebuild and smoke-test the packaged assets with:
+
+```bash
+scripts/build_wasm.sh
+```
+
+The module is intentionally packaged as a Flutter asset so a consuming Flutter
+web build serves the JavaScript loader and its sibling `.wasm` file together.
+The browser loader resolves the WASM URL relative to itself, avoiding a hardcoded
+application base URL.

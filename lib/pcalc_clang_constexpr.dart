@@ -1,104 +1,19 @@
-import 'dart:convert';
-import 'dart:ffi';
+import 'src/backend_stub.dart'
+    if (dart.library.ffi) 'src/backend_native.dart'
+    if (dart.library.js_interop) 'src/backend_web.dart';
+import 'src/types.dart';
 
-import 'package:ffi/ffi.dart';
+export 'src/types.dart';
 
-enum ClangExpressionLanguage { c, cpp }
+/// Initializes the evaluator for the active platform.
+///
+/// Native platforms complete immediately. On web this loads the packaged
+/// Emscripten module and must be awaited before evaluating expressions.
+Future<void> initializeClangConstexpr({String? moduleUrl, String? wasmUrl}) =>
+    backend.initialize(moduleUrl: moduleUrl, wasmUrl: wasmUrl);
 
-enum ClangValueKind { error, integer, floating, boolean, character }
-
-final class ClangEvaluationResult {
-  const ClangEvaluationResult({
-    required this.kind,
-    required this.displayText,
-    required this.typeName,
-    required this.bitWidth,
-    required this.isSigned,
-    this.floatingValue,
-  });
-
-  final ClangValueKind kind;
-  final String displayText;
-  final String typeName;
-  final int bitWidth;
-  final bool isSigned;
-  final double? floatingValue;
-}
-
-final class ClangEvaluationException implements Exception {
-  const ClangEvaluationException(this.message);
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
-final class _NativeResult extends Struct {
-  @Int32()
-  external int status;
-  @Int32()
-  external int kind;
-  @Int32()
-  external int bitWidth;
-  @Int32()
-  external int isSigned;
-  @Double()
-  external double floatingValue;
-  @Array(160)
-  external Array<Char> integerValue;
-  @Array(96)
-  external Array<Char> typeName;
-  @Array(1024)
-  external Array<Char> errorMessage;
-}
-
-@Native<Int32 Function(Int32, Pointer<Char>, Uint32, Pointer<_NativeResult>)>(
-  assetId: 'package:pcalc_clang_constexpr/pcalc_clang_constexpr',
-  symbol: 'pcalc_constexpr_evaluate_language',
-)
-external int _evaluateNative(
-  int language,
-  Pointer<Char> expression,
-  int expressionLength,
-  Pointer<_NativeResult> result,
-);
-
-String _readArray(Array<Char> value, int capacity) {
-  final units = <int>[];
-  for (var index = 0; index < capacity && value[index] != 0; index++) {
-    units.add(value[index] & 0xff);
-  }
-  return utf8.decode(units);
-}
-
+/// Evaluates a typed C or C++ constant expression.
 ClangEvaluationResult evaluateClangExpression(
   String expression, {
   ClangExpressionLanguage language = ClangExpressionLanguage.cpp,
-}) {
-  final encodedLength = utf8.encode(expression).length;
-  final encoded = expression.toNativeUtf8();
-  final result = calloc<_NativeResult>();
-  try {
-    _evaluateNative(language.index, encoded.cast(), encodedLength, result);
-    final native = result.ref;
-    if (native.status != 0) {
-      throw ClangEvaluationException(_readArray(native.errorMessage, 1024));
-    }
-    final kind = ClangValueKind.values[native.kind];
-    return ClangEvaluationResult(
-      kind: kind,
-      displayText: kind == ClangValueKind.floating
-          ? native.floatingValue.toString()
-          : _readArray(native.integerValue, 160),
-      typeName: _readArray(native.typeName, 96),
-      bitWidth: native.bitWidth,
-      isSigned: native.isSigned != 0,
-      floatingValue: kind == ClangValueKind.floating
-          ? native.floatingValue
-          : null,
-    );
-  } finally {
-    calloc.free(result);
-    malloc.free(encoded);
-  }
-}
+}) => backend.evaluate(expression, language: language);
