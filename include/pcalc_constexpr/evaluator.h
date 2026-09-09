@@ -28,8 +28,18 @@ enum pcalc_constexpr_kind {
 };
 
 enum pcalc_constexpr_language {
+  // Backward-compatible defaults.
   PCALC_CONSTEXPR_C = 0,
   PCALC_CONSTEXPR_CXX = 1,
+  PCALC_CONSTEXPR_C99 = 2,
+  PCALC_CONSTEXPR_C11 = 3,
+  PCALC_CONSTEXPR_C17 = 4,
+  PCALC_CONSTEXPR_C23 = 5,
+  PCALC_CONSTEXPR_CXX11 = 6,
+  PCALC_CONSTEXPR_CXX14 = 7,
+  PCALC_CONSTEXPR_CXX17 = 8,
+  PCALC_CONSTEXPR_CXX20 = 9,
+  PCALC_CONSTEXPR_CXX23 = 10,
 };
 
 typedef struct pcalc_constexpr_result {

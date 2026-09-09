@@ -25,8 +25,42 @@ Try an expression:
 ./build/pcalc-constexpr --c '(unsigned char)270'
 ```
 
-The C API exposes separate C23 and C++20 modes. C++ is the default for backward
-compatibility; callers can use `pcalc_constexpr_evaluate_language` to select C.
+The C API exposes C99, C11, C17, C23, C++11, C++14, C++17, C++20, and C++23.
+The original generic C and C++ values remain ABI-compatible aliases for C23 and
+C++20. C++ is the default for backward compatibility; callers can use
+`pcalc_constexpr_evaluate_language` to select a language standard.
+
+## Target ABI modelling
+
+The evaluator is a parser and constant-expression interpreter, not a code
+generator. Clang's `LangOptions` and `TargetInfo` determine the language rules
+and target ABI used while parsing and evaluating an expression. That means a
+hosted Linux, Android, or WASM build can model another target's integer and
+data-model rules without cross-compiling or executing generated target code.
+
+Planned calculator target profiles include:
+
+- 32-bit ILP32 targets, such as i386 and ARMv7;
+- 64-bit LP64 targets, such as x86-64 and AArch64;
+- wasm32;
+- a selected big-endian profile, such as PowerPC.
+
+This matters for the width and signedness of implementation-defined types such
+as `long`, pointer-sized types, `char`, integer promotions, casts, overflow,
+and eventually `sizeof`. It lets a developer check the expression semantics
+they would get for a chosen ABI from the same calculator binary.
+
+Endianness has almost no observable effect on the current pure-expression
+subset: scalar arithmetic, casts, and bit shifts have the same numeric result.
+It becomes useful only when the calculator grows byte-oriented capabilities,
+such as packed structs, memory views, serialization helpers, or explicitly
+interpreting a byte sequence.
+
+This is intentionally not a substitute for a cross toolchain. A target SDK,
+headers/sysroot, and code-generation toolchain are still required to compile or
+run a real program, use target platform headers, or validate target runtime
+behavior. The ABI selector models Clang's self-contained language and type
+semantics only.
 
 ## Native library
 

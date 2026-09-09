@@ -59,7 +59,12 @@ final class _NativeBackend implements ClangConstexprBackend {
     final encoded = expression.toNativeUtf8();
     final result = calloc<_NativeResult>();
     try {
-      _evaluateNative(language.index, encoded.cast(), encodedLength, result);
+      _evaluateNative(
+        _nativeLanguageCode(language),
+        encoded.cast(),
+        encodedLength,
+        result,
+      );
       final native = result.ref;
       if (native.status != 0) {
         throw ClangEvaluationException(_readArray(native.errorMessage, 1024));
@@ -83,3 +88,12 @@ final class _NativeBackend implements ClangConstexprBackend {
     }
   }
 }
+
+// Older packaged native libraries understand the generic C/C++ values only.
+// Their semantics deliberately track C23 and C++20, so retain ABI compatibility
+// for the two defaults while newer libraries support the complete enum.
+int _nativeLanguageCode(ClangExpressionLanguage language) => switch (language) {
+  ClangExpressionLanguage.c23 => ClangExpressionLanguage.c.index,
+  ClangExpressionLanguage.cpp20 => ClangExpressionLanguage.cpp.index,
+  _ => language.index,
+};

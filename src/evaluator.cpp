@@ -34,6 +34,58 @@ namespace {
 
 constexpr const char *kResultName = "__pcalc_result";
 
+struct LanguageConfiguration {
+  bool is_cxx;
+  clang::Language language;
+  clang::LangStandard::Kind standard;
+};
+
+const LanguageConfiguration *languageConfiguration(int32_t language) {
+  static constexpr LanguageConfiguration kC99{
+      false, clang::Language::C, clang::LangStandard::lang_c99};
+  static constexpr LanguageConfiguration kC11{
+      false, clang::Language::C, clang::LangStandard::lang_c11};
+  static constexpr LanguageConfiguration kC17{
+      false, clang::Language::C, clang::LangStandard::lang_c17};
+  static constexpr LanguageConfiguration kC23{
+      false, clang::Language::C, clang::LangStandard::lang_c23};
+  static constexpr LanguageConfiguration kCxx11{
+      true, clang::Language::CXX, clang::LangStandard::lang_cxx11};
+  static constexpr LanguageConfiguration kCxx14{
+      true, clang::Language::CXX, clang::LangStandard::lang_cxx14};
+  static constexpr LanguageConfiguration kCxx17{
+      true, clang::Language::CXX, clang::LangStandard::lang_cxx17};
+  static constexpr LanguageConfiguration kCxx20{
+      true, clang::Language::CXX, clang::LangStandard::lang_cxx20};
+  static constexpr LanguageConfiguration kCxx23{
+      true, clang::Language::CXX, clang::LangStandard::lang_cxx23};
+
+  switch (language) {
+  case PCALC_CONSTEXPR_C:
+  case PCALC_CONSTEXPR_C23:
+    return &kC23;
+  case PCALC_CONSTEXPR_CXX:
+  case PCALC_CONSTEXPR_CXX20:
+    return &kCxx20;
+  case PCALC_CONSTEXPR_C99:
+    return &kC99;
+  case PCALC_CONSTEXPR_C11:
+    return &kC11;
+  case PCALC_CONSTEXPR_C17:
+    return &kC17;
+  case PCALC_CONSTEXPR_CXX11:
+    return &kCxx11;
+  case PCALC_CONSTEXPR_CXX14:
+    return &kCxx14;
+  case PCALC_CONSTEXPR_CXX17:
+    return &kCxx17;
+  case PCALC_CONSTEXPR_CXX23:
+    return &kCxx23;
+  default:
+    return nullptr;
+  }
+}
+
 void copyText(char *destination, size_t capacity, const std::string &value) {
   if (capacity == 0)
     return;
@@ -106,7 +158,8 @@ private:
 
 class ParsedTranslationUnit {
 public:
-  ParsedTranslationUnit(const std::string &source, bool is_cxx)
+  ParsedTranslationUnit(const std::string &source,
+                        const LanguageConfiguration &configuration)
       : filesystem_(llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>()),
         file_manager_(clang::FileSystemOptions(), filesystem_),
         diagnostics_(clang::DiagnosticIDs::create(), diagnostic_options_,
@@ -121,16 +174,14 @@ public:
 
     std::vector<std::string> includes;
     const llvm::Triple triple(target_options_->Triple);
-    clang::LangOptions::setLangDefaults(
-        language_options_, is_cxx ? clang::Language::CXX : clang::Language::C,
-        triple, includes,
-        is_cxx ? clang::LangStandard::lang_cxx20
-               : clang::LangStandard::lang_c23);
+    clang::LangOptions::setLangDefaults(language_options_, configuration.language,
+                                        triple, includes, configuration.standard);
     language_options_.EnableNewConstInterp = true;
     language_options_.ConstexprStepLimit = 100000;
 
     auto buffer = llvm::MemoryBuffer::getMemBufferCopy(
-        source, is_cxx ? "pcalc_expression.cc" : "pcalc_expression.c");
+        source, configuration.is_cxx ? "pcalc_expression.cc"
+                                      : "pcalc_expression.c");
     source_manager_.setMainFileID(
         source_manager_.createFileID(std::move(buffer)));
 
@@ -208,12 +259,13 @@ pcalc_constexpr_evaluate_language(int32_t language, const char *expression,
     return result->status;
   }
 
-  if (language != PCALC_CONSTEXPR_C && language != PCALC_CONSTEXPR_CXX) {
-    fail(*result, "unknown expression language");
+  const LanguageConfiguration *configuration = languageConfiguration(language);
+  if (!configuration) {
+    fail(*result, "unknown expression language standard");
     return result->status;
   }
 
-  const bool is_cxx = language == PCALC_CONSTEXPR_CXX;
+  const bool is_cxx = configuration->is_cxx;
   const std::string aliases =
       is_cxx
           ? "using int8_t = signed char; using uint8_t = unsigned char; "
@@ -230,7 +282,7 @@ pcalc_constexpr_evaluate_language(int32_t language, const char *expression,
                    input + ");";
   const std::string source = aliases + declaration;
 
-  ParsedTranslationUnit translation_unit(source, is_cxx);
+  ParsedTranslationUnit translation_unit(source, *configuration);
   if (!translation_unit.valid()) {
     fail(*result, translation_unit.diagnosticsText());
     return result->status;

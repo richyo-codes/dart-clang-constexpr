@@ -37,8 +37,24 @@ int main() {
   assert(wide.status == 0);
   assert(std::string(wide.integer_value) == "9223372036854775808");
 
-  auto rejected = evaluate("[] { return 1; }()");
-  assert(rejected.status != 0);
+  // Lambdas are intentionally outside the calculator subset. Empty lambda
+  // expressions reach the AST allowlist; invoked lambdas are rejected earlier
+  // because their return statements use forbidden statement syntax.
+  for (const char *lambda : {
+           "[]{}",
+           "[value = 4]{}",
+           "[](auto value){}",
+       }) {
+    auto rejected = evaluate(lambda);
+    assert(rejected.status != 0);
+    assert(std::string(rejected.error_message).find("LambdaExpr") !=
+           std::string::npos);
+  }
+
+  auto invoked_lambda = evaluate("[](int value) { return value + 1; }(41)");
+  assert(invoked_lambda.status != 0);
+  assert(std::string(invoked_lambda.error_message).find("statement syntax") !=
+         std::string::npos);
 
   auto c_cast = evaluateC("(unsigned char)270");
   assert(c_cast.status == 0);
@@ -48,6 +64,13 @@ int main() {
   auto c_shift = evaluateC("0xffu << 8");
   assert(c_shift.status == 0);
   assert(std::string(c_shift.integer_value) == "65280");
+
+  auto cxx_cast = evaluate("static_cast<unsigned char>(270)");
+  assert(cxx_cast.status == 0);
+  assert(std::string(cxx_cast.integer_value) == "14");
+
+  auto c_rejects_cxx_cast = evaluateC("static_cast<unsigned char>(270)");
+  assert(c_rejects_cxx_cast.status != 0);
 
   return 0;
 }
