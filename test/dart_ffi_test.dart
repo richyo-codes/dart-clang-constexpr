@@ -1,4 +1,4 @@
-import 'package:pcalc_clang_constexpr/pcalc_clang_constexpr.dart';
+import 'package:dart_clang_constexpr/dart_clang_constexpr.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -8,7 +8,7 @@ final ClangConstexprBackend backend = _WebBackend();
 
 final class _WebBackend implements ClangConstexprBackend {
   static const _defaultLoaderUrl =
-      './assets/packages/pcalc_clang_constexpr/lib/pcalc_clang_constexpr_loader.js';
+      './assets/packages/dart_clang_constexpr/lib/pcalc_clang_constexpr_loader.js';
 
   _ClangWasmModule? _module;
   Future<void>? _initializing;

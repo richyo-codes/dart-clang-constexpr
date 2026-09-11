@@ -1,4 +1,4 @@
-name: pcalc_clang_constexpr
+name: dart_clang_constexpr
 description: Typed C and C++ constant-expression evaluation using Clang.
 version: 0.1.0
 publish_to: none
