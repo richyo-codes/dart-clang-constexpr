@@ -23,7 +23,7 @@ jobs:
       EMSDK_VERSION: 5.0.7
       BUILD_JOBS: "2"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           lfs: true
           persist-credentials: false
