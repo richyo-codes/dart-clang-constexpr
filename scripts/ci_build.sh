@@ -19,7 +19,7 @@ common=(
 )
 cmake -S "$LLVM_PROJECT_DIR/llvm" -B "$HOST_TOOLS_DIR" "${common[@]}"
 if [[ "$target" == linux ]]; then
-  cmake --build "$HOST_TOOLS_DIR" --target clangFrontend --parallel "$BUILD_JOBS"
+  cmake --build "$HOST_TOOLS_DIR" --target clang-libraries --parallel "$BUILD_JOBS"
   export LLVM_DIR="$HOST_TOOLS_DIR/lib/cmake/llvm"
   export Clang_DIR="$HOST_TOOLS_DIR/lib/cmake/clang"
   cmake -S . -B build-ci-linux -G Ninja -DCMAKE_BUILD_TYPE=Release \
@@ -39,7 +39,7 @@ else
       -DLLVM_ENABLE_THREADS=OFF \
       -DLLVM_TABLEGEN="$HOST_TOOLS_DIR/bin/llvm-tblgen" \
       -DCLANG_TABLEGEN="$HOST_TOOLS_DIR/bin/clang-tblgen"
-    cmake --build build-ci-wasm-llvm --target clangFrontend --parallel "$BUILD_JOBS"
+    cmake --build build-ci-wasm-llvm --target clang-libraries --parallel "$BUILD_JOBS"
     export LLVM_DIR="$repo_dir/build-ci-wasm-llvm/lib/cmake/llvm"
     export Clang_DIR="$repo_dir/build-ci-wasm-llvm/lib/cmake/clang"
     bash scripts/build_wasm.sh

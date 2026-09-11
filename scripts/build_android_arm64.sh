@@ -45,7 +45,7 @@ cmake -S "$LLVM_PROJECT_DIR/llvm" -B "$LLVM_BUILD_DIR" -G Ninja \
   -DLLVM_ENABLE_PIC=ON \
   -DLLVM_ENABLE_LTO=Thin
 
-cmake --build "$LLVM_BUILD_DIR" --target clangFrontend --parallel "$BUILD_JOBS"
+cmake --build "$LLVM_BUILD_DIR" --target clang-libraries --parallel "$BUILD_JOBS"
 
 cmake -S "$PROJECT_DIR" -B "$EVALUATOR_BUILD_DIR" -G Ninja \
   -DCMAKE_BUILD_TYPE=MinSizeRel \
