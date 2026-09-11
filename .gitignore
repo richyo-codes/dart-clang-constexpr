@@ -7,3 +7,4 @@
 /build-android-evaluator/
 /dist/
 /.dart_tool/
+/build-ci-*/

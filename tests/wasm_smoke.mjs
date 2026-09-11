@@ -1,4 +1,5 @@
 import { performance } from 'node:perf_hooks';
+import assert from 'node:assert/strict';
 import { initializePcalcClangConstexpr } from '../lib/pcalc_clang_constexpr_loader.js';
 
 const started = performance.now();
@@ -24,5 +25,23 @@ console.log(JSON.stringify({
   results,
 }, null, 2));
 
-if (results.some((result) => result.status !== 0))
-  process.exitCode = 1;
+const expected = [
+  ['7', 32, true],
+  ['-1', 8, true],
+  ['9223372036854775808', 64, false],
+  ['14', 8, false],
+];
+results.forEach((result, index) => {
+  assert.equal(result.status, 0, result.errorMessage);
+  assert.deepEqual(
+    [result.displayText, result.bitWidth, result.isSigned],
+    expected[index],
+    result.expression,
+  );
+});
+for (let language = 0; language <= 10; language++) {
+  const result = evaluate(language, '40 + 2');
+  assert.equal(result.status, 0, result.errorMessage);
+  assert.equal(result.displayText, '42', `language ${language}`);
+}
+assert.notEqual(evaluate(1, '1 +').status, 0);

@@ -1,5 +1,9 @@
 #include "pcalc_constexpr/evaluator.h"
 
+// Keep the test oracle active in Release and MinSizeRel builds.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cstring>
 #include <string>
@@ -37,9 +41,7 @@ int main() {
   assert(wide.status == 0);
   assert(std::string(wide.integer_value) == "9223372036854775808");
 
-  // Lambdas are intentionally outside the calculator subset. Empty lambda
-  // expressions reach the AST allowlist; invoked lambdas are rejected earlier
-  // because their return statements use forbidden statement syntax.
+  // Lambdas are outside the subset: braces fail the source guard first.
   for (const char *lambda : {
            "[]{}",
            "[value = 4]{}",
@@ -47,7 +49,7 @@ int main() {
        }) {
     auto rejected = evaluate(lambda);
     assert(rejected.status != 0);
-    assert(std::string(rejected.error_message).find("LambdaExpr") !=
+    assert(std::string(rejected.error_message).find("statement syntax") !=
            std::string::npos);
   }
 

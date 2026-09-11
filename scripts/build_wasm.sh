@@ -11,6 +11,7 @@ build_dir="${repo_dir}/build-wasm"
 
 emcmake cmake -S "${repo_dir}" -B "${build_dir}" -G Ninja \
   -DCMAKE_BUILD_TYPE=MinSizeRel \
+  -DPCALC_CONSTEXPR_BUILD_SHARED=OFF \
   -DLLVM_DIR="${LLVM_DIR}" \
   -DClang_DIR="${Clang_DIR}"
 cmake --build "${build_dir}" --target pcalc-constexpr-wasm

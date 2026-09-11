@@ -126,3 +126,30 @@ The module is intentionally packaged as a Flutter asset so a consuming Flutter
 web build serves the JavaScript loader and its sibling `.wasm` file together.
 The browser loader resolves the WASM URL relative to itself, avoiding a hardcoded
 application base URL.
+
+## Continuous integration
+
+The GitHub workflow in `.github/workflows/verify.yml` runs on pushes, pull
+requests, and manual dispatch. It invokes `scripts/ci_build.sh`:
+
+- Linux builds LLVM/Clang and the evaluator shared library from source, runs
+  CTest with assertions enabled, then runs Dart analysis and FFI tests.
+- WASM builds host TableGen tools, cross-builds LLVM/Clang using Emscripten,
+  rebuilds the packaged evaluator module, and runs the Node smoke test.
+- Android builds host TableGen tools and cross-builds LLVM/Clang and the arm64
+  evaluator shared library with NDK r29. This checks compilation/linking only;
+  it does not execute Android tests or replace the checked-in Android library.
+
+LLVM and Flutter revisions and the Emscripten version are recorded in each
+workflow. The Flutter revision supplies a Dart SDK compatible with this package's constraint.
+CI fetches toolchain sources outside the package so Dart analysis does not scan
+an embedded Flutter checkout.
+
+Jobs use Ubuntu 24.04, two build workers, and a six-hour timeout. Cold LLVM
+builds are expensive; the workflow currently rebuilds without a compiler cache. No release is published and no
+checked-in binary is automatically updated.
+
+For local reproduction, install the applicable tools, set LLVM_PROJECT_DIR to
+the pinned LLVM source checkout, and run `bash scripts/ci_build.sh linux`,
+`wasm`, or `android`. For WASM first source emsdk_env.sh; for Android set
+ANDROID_NDK_HOME. BUILD_JOBS defaults to 2.
