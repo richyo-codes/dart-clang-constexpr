@@ -14,10 +14,10 @@ emcmake cmake -S "${repo_dir}" -B "${build_dir}" -G Ninja \
   -DPCALC_CONSTEXPR_BUILD_SHARED=OFF \
   -DLLVM_DIR="${LLVM_DIR}" \
   -DClang_DIR="${Clang_DIR}"
-cmake --build "${build_dir}" --target pcalc-constexpr-wasm
+cmake --build "${build_dir}" --target dart-clang-constexpr-wasm
 
-install -m 0644 "${build_dir}/pcalc-constexpr-wasm.js" \
-  "${repo_dir}/lib/pcalc_clang_constexpr.js"
-install -m 0644 "${build_dir}/pcalc-constexpr-wasm.wasm" \
-  "${repo_dir}/lib/pcalc_clang_constexpr.wasm"
+install -m 0644 "${build_dir}/dart-clang-constexpr-wasm.js" \
+  "${repo_dir}/lib/dart_clang_constexpr.js"
+install -m 0644 "${build_dir}/dart-clang-constexpr-wasm.wasm" \
+  "${repo_dir}/lib/dart_clang_constexpr.wasm"
 node "${repo_dir}/tests/wasm_smoke.mjs"

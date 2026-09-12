@@ -22,7 +22,7 @@ Future<void> main(List<String> args) async {
 
       final library = File.fromUri(
         input.packageRoot.resolve(
-          'native/android/$abi/libpcalc_clang_constexpr.so',
+          'native/android/$abi/libdart_clang_constexpr.so',
         ),
       );
       if (!library.existsSync()) return;
@@ -30,7 +30,7 @@ Future<void> main(List<String> args) async {
       output.assets.code.add(
         CodeAsset(
           package: input.packageName,
-          name: 'pcalc_clang_constexpr',
+          name: 'dart_clang_constexpr',
           linkMode: DynamicLoadingBundled(),
           file: library.uri,
         ),
@@ -50,7 +50,7 @@ Future<void> main(List<String> args) async {
         await Directory.fromUri(buildDirectory).delete(recursive: true);
       }
     }
-    final library = buildDirectory.resolve('libpcalc_clang_constexpr.so');
+    final library = buildDirectory.resolve('libdart_clang_constexpr.so');
     await Directory.fromUri(buildDirectory).create(recursive: true);
 
     final configureArguments = <String>[
@@ -73,13 +73,13 @@ Future<void> main(List<String> args) async {
       '--build',
       buildDirectory.toFilePath(),
       '--target',
-      'pcalc_clang_constexpr',
+      'dart_clang_constexpr',
     ]);
 
     output.assets.code.add(
       CodeAsset(
         package: input.packageName,
-        name: 'pcalc_clang_constexpr',
+        name: 'dart_clang_constexpr',
         linkMode: DynamicLoadingBundled(),
         file: library,
       ),

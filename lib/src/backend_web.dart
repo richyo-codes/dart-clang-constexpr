@@ -8,7 +8,7 @@ final ClangConstexprBackend backend = _WebBackend();
 
 final class _WebBackend implements ClangConstexprBackend {
   static const _defaultLoaderUrl =
-      './assets/packages/dart_clang_constexpr/lib/pcalc_clang_constexpr_loader.js';
+      './assets/packages/dart_clang_constexpr/lib/dart_clang_constexpr_loader.js';
 
   _ClangWasmModule? _module;
   Future<void>? _initializing;
@@ -26,7 +26,7 @@ final class _WebBackend implements ClangConstexprBackend {
       final loader = _ClangWasmLoader(
         await importModule((moduleUrl ?? _defaultLoaderUrl).toJS).toDart,
       );
-      _module = await loader.initializePcalcClangConstexpr(options).toDart;
+      _module = await loader.initializeDartClangConstexpr(options).toDart;
     } catch (_) {
       _initializing = null;
       rethrow;
@@ -62,7 +62,7 @@ final class _WebBackend implements ClangConstexprBackend {
 }
 
 extension type _ClangWasmLoader(JSObject _) implements JSObject {
-  external JSPromise<_ClangWasmModule> initializePcalcClangConstexpr(
+  external JSPromise<_ClangWasmModule> initializeDartClangConstexpr(
     JSObject options,
   );
 }

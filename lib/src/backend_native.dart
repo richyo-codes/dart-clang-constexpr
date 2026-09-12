@@ -28,7 +28,7 @@ final class _NativeResult extends Struct {
 }
 
 @Native<Int32 Function(Int32, Pointer<Char>, Uint32, Pointer<_NativeResult>)>(
-  assetId: 'package:dart_clang_constexpr/pcalc_clang_constexpr',
+  assetId: 'package:dart_clang_constexpr/dart_clang_constexpr',
   symbol: 'pcalc_constexpr_evaluate_language',
 )
 external int _evaluateNative(

@@ -18,6 +18,6 @@ dev_dependencies:
 
 flutter:
   assets:
-    - lib/pcalc_clang_constexpr.js
-    - lib/pcalc_clang_constexpr.wasm
-    - lib/pcalc_clang_constexpr_loader.js
+    - lib/dart_clang_constexpr.js
+    - lib/dart_clang_constexpr.wasm
+    - lib/dart_clang_constexpr_loader.js

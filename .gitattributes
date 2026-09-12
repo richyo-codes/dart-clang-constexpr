@@ -1,3 +1,3 @@
 # Runtime assets must be available to Pub without an LFS download.
-native/android/**/libpcalc_clang_constexpr.so -filter -diff -merge -text
-lib/pcalc_clang_constexpr.wasm -filter -diff -merge -text
+native/android/**/libdart_clang_constexpr.so -filter -diff -merge -text
+lib/dart_clang_constexpr.wasm -filter -diff -merge -text

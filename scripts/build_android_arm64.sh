@@ -58,9 +58,9 @@ cmake -S "$PROJECT_DIR" -B "$EVALUATOR_BUILD_DIR" -G Ninja \
   -DPCALC_CONSTEXPR_ENABLE_IPO=ON \
   -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--gc-sections,-Map=$EVALUATOR_BUILD_DIR/pcalc-clang-constexpr.map"
 
-cmake --build "$EVALUATOR_BUILD_DIR" --target pcalc_clang_constexpr --parallel "$BUILD_JOBS"
+cmake --build "$EVALUATOR_BUILD_DIR" --target dart_clang_constexpr --parallel "$BUILD_JOBS"
 
-LIBRARY="$EVALUATOR_BUILD_DIR/libpcalc_clang_constexpr.so"
+LIBRARY="$EVALUATOR_BUILD_DIR/libdart_clang_constexpr.so"
 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" \
   --strip-unneeded "$LIBRARY"
 echo "Built Android arm64 evaluator: $LIBRARY"

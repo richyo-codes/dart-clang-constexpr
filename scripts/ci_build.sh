@@ -33,7 +33,7 @@ else
   cmake --build "$HOST_TOOLS_DIR" --target llvm-tblgen clang-tblgen --parallel "$BUILD_JOBS"
   if [[ "$target" == android ]]; then
     bash scripts/build_android_arm64.sh
-    test -s build-android-evaluator/libpcalc_clang_constexpr.so
+    test -s build-android-evaluator/libdart_clang_constexpr.so
   else
     emcmake cmake -S "$LLVM_PROJECT_DIR/llvm" -B build-ci-wasm-llvm "${common[@]}" \
       -DLLVM_ENABLE_THREADS=OFF \

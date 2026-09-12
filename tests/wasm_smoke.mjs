@@ -1,9 +1,9 @@
 import { performance } from 'node:perf_hooks';
 import assert from 'node:assert/strict';
-import { initializePcalcClangConstexpr } from '../lib/pcalc_clang_constexpr_loader.js';
+import { initializeDartClangConstexpr } from '../lib/dart_clang_constexpr_loader.js';
 
 const started = performance.now();
-const module = await initializePcalcClangConstexpr();
+const module = await initializeDartClangConstexpr();
 const initialized = performance.now();
 
 function evaluate(language, expression) {
