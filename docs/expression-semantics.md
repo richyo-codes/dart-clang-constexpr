@@ -2,57 +2,74 @@
 
 [Back to the README](../README.md)
 
-The evaluator parses an in-memory synthetic `constexpr auto` declaration,
-validates its AST against a calculator subset, and evaluates it through
-Clang's public `Expr::EvaluateAsConstantExpr` API. It does not use Cling,
-CodeGen, LLVM IR, or a JIT.
+The evaluator parses an in-memory synthetic declaration and asks Clang's public
+`Expr::EvaluateAsConstantExpr` API for a numeric constant result. It does not use
+Cling, CodeGen, LLVM IR, a JIT, or native runtime execution.
 
 ## Language modes
 
-The C API exposes C99, C11, C17, C23, C++11, C++14, C++17, C++20, and C++23.
-The original generic C and C++ values remain ABI-compatible aliases for C23 and
-C++20. C++ is the default for backward compatibility; callers can use
-`pcalc_constexpr_evaluate_language` to select a language standard.
+Choose C99, C11, C17, C23, or C++11/14/17/20/23. The original C and C++ API values
+remain aliases for C23 and C++20. The default is C++20.
 
-## Functions and constant evaluation
+## Expressions and functions
 
-**The public calculator API does not currently support user-written
-`consteval` functions or lambdas.** Selecting C++20 or C++23 changes Clang's
-language mode; it does not expand this package's expression allowlist.
+Arithmetic, casts, comparisons, ternaries, bit operations, `sizeof`, and other
+expressions are accepted when Clang can evaluate them as constants. Results must
+be integers, floating-point values, booleans, or characters; pointers, arrays,
+closures, and class objects are not calculator result types.
 
-In C++20, `consteval` declares an immediate function: ordinary calls must
-produce a constant expression. A `constexpr` function can also be used at
-runtime when called outside a constant-expression context. `consteval` is a
-function specifier, not a general prefix to put before a calculation. See the
-[C++ specifier rules](https://eel.is/c++draft/dcl.constexpr) and
-[Clang's language support table](https://clang.llvm.org/cxx_status.html).
-
-| Capability | Current package support |
-| --- | --- |
-| Constant arithmetic, bit operations, comparisons, ternaries, supported casts | Yes, subject to language rules and the AST allowlist |
-| User-defined `constexpr` functions and lambdas, including recursion | No |
-| C++20 `consteval` functions or immediate lambdas | No |
-| C++23 `if consteval` statements | No |
-| Standard-library calls such as `std::min` and `std::abs` | No; headers and function calls are not provided |
-
-For C++, the wrapper creates `constexpr auto __pcalc_result = (input);` and
-calls `Expr::EvaluateAsConstantExpr`. This requires a constant result but is
-not an implementation of the user-facing `consteval` function feature.
-The source guard rejects braces, semicolons, directives, and line breaks;
-the AST allowlist also excludes lambda and function-call nodes. These limits
-apply to native and WASM builds.
-
-For example, this is valid C++20 and would produce 42 in a suitable constant
-context, but **is rejected by this package**:
+In C++17 and later, invoked constexpr-capable lambdas can contain local variables,
+loops, arrays, local types, member calls, and recursive generic lambdas.
+C++20 also supports immediate lambdas:
 
 ```cpp
 []() consteval { return 6 * 7; }()
 ```
 
-Enabling it would require expanding the source/AST policy, validating function
-bodies and calls, and adding tests for language-version rules, recursion and
-evaluation limits. Clang already has the language machinery; package support
-must be implemented and tested separately.
+For example, this returns 120:
+
+```cpp
+[] {
+  auto factorial = [](auto self, int n) -> int {
+    return n < 2 ? 1 : n * self(self, n - 1);
+  };
+  return factorial(factorial, 5);
+}()
+```
+
+The selected language still controls legality. C rejects C++ lambdas; a lambda
+call is not a constant expression in C++14. A runtime-only call or invalid
+constant operation is rejected, never evaluated by executing native code.
+Standard-library headers are not provided. User-defined functions can be local
+lambdas or constexpr members of local types; top-level function definitions are
+not accepted.
+
+## Input boundary and evaluation limits
+
+The input must remain one expression. A raw Clang lexer checks balanced
+parentheses, brackets, and braces, rejects top-level semicolons and preprocessing
+tokens (including digraph forms), and handles punctuation in comments and
+literals correctly. Newlines, comments, and statements within lambda bodies are
+allowed. Clang performs the syntax and constant-expression checks.
+
+The C++ wrapper declares a constexpr result. C uses a const initializer followed
+by constant evaluation. Both use an in-memory filesystem without host headers.
+Inputs are limited to 65,536 bytes and cannot contain embedded NUL bytes.
+Constant evaluation has a 100,000-step budget and Clang's default recursion limit.
+
+The established constant evaluator is explicitly selected on all builds.
+With the installed LLVM 22 experimental interpreter, the reproduction
+`[] { while (true) {} return 1; }()` failed to terminate despite the step budget.
+The expected result is a constant-evaluation error. Upstream tracks the missing
+budget enforcement in [issue #165951](https://github.com/llvm/llvm-project/issues/165951)
+and [fix #176150](https://github.com/llvm/llvm-project/pull/176150)
+(commit `f71e32196667264607974e22d28d3badb2d73b5e`).
+Do not re-enable the experimental interpreter until every supported toolchain
+has the fix and passes the loop-limit regression. The native suite has a
+30-second timeout; run the WASM smoke test under an external timeout as well.
+
+These are evaluator limits, not a complete hostile-input sandbox: parsing and
+template instantiation have separate resource costs.
 
 ## Target ABI modelling
 

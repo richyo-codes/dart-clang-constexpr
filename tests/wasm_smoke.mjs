@@ -45,3 +45,28 @@ for (let language = 0; language <= 10; language++) {
   assert.equal(result.displayText, '42', `language ${language}`);
 }
 assert.notEqual(evaluate(1, '1 +').status, 0);
+
+for (const expression of [
+  '[] { int n = 1; for (int i = 2; i <= 5; ++i) n *= i; return n; }()',
+  '[] { auto f = [](auto self, int n) -> int { return n < 2 ? 1 : n * self(self, n-1); }; return f(f, 5); }()',
+  '[]() consteval { return 120; }()',
+  '[n = 119] { return n + 1; }()',
+  '\n100 +\n20 // comment',
+  "'{' - '{' + 120",
+]) {
+  const result = evaluate(1, expression);
+  assert.equal(result.status, 0, result.errorMessage);
+  assert.equal(result.displayText, '120', expression);
+}
+for (const expression of [
+  '1); constexpr int injected = (2',
+  '\n#define X 1\nX',
+  '\n%:define X 1\nX',
+  '[] { while (true) {} return 1; }()',
+  '[] { static int n = 0; return ++n; }()',
+  '[] { return 1; }',
+]) {
+  assert.notEqual(evaluate(1, expression).status, 0, expression);
+}
+assert.notEqual(evaluate(0, '[] { return 1; }()').status, 0);
+console.log('Expanded constant-expression and limit checks passed.');

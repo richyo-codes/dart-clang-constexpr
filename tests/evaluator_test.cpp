@@ -41,7 +41,7 @@ int main() {
   assert(wide.status == 0);
   assert(std::string(wide.integer_value) == "9223372036854775808");
 
-  // Lambdas are outside the subset: braces fail the source guard first.
+  // A closure alone is not a numeric calculator result.
   for (const char *lambda : {
            "[]{}",
            "[value = 4]{}",
@@ -49,14 +49,60 @@ int main() {
        }) {
     auto rejected = evaluate(lambda);
     assert(rejected.status != 0);
-    assert(std::string(rejected.error_message).find("statement syntax") !=
-           std::string::npos);
   }
 
   auto invoked_lambda = evaluate("[](int value) { return value + 1; }(41)");
-  assert(invoked_lambda.status != 0);
-  assert(std::string(invoked_lambda.error_message).find("statement syntax") !=
-         std::string::npos);
+  assert(invoked_lambda.status == 0);
+  assert(std::string(invoked_lambda.integer_value) == "42");
+
+  for (const char *input : {
+           "[] { int n = 1; for (int i = 2; i <= 5; ++i) n *= i; return n; }()",
+           "[] { auto f = [](auto self, int n) -> int { return n < 2 ? 1 : n * self(self, n-1); }; return f(f, 5); }()",
+           "[]() consteval { return 120; }()",
+           "[n = 119] { return n + 1; }()",
+           "[] { int values[] = {100, 20}; return values[0] + values[1]; }()",
+           "[] { struct V { int n; constexpr int get() const { return n; } }; return V{120}.get(); }()",
+           "\n100 +\n20 // trailing comment",
+           "120 /* ; { } # */",
+           "'{' - '{' + 120",
+       }) {
+    auto value = evaluate(input);
+    assert(value.status == 0);
+    assert(std::string(value.integer_value) == "120");
+  }
+
+  for (const char *input : {
+           "1; int injected = 2",
+           "1); constexpr int injected = (2",
+           "1) /* escape wrapper */",
+           "\n#define X 1\nX",
+           "\n%:define X 1\nX",
+           "\n#include <cmath>\n1",
+           "[] { while (true) {} return 1; }()",
+           "[] { static int n = 0; return ++n; }()",
+           "[] { int n = 0; return 1 / n; }()",
+           "[] { return 1; }", // nonnumeric closure
+           "\"text\"", // pointer result
+       }) {
+    assert(evaluate(input).status != 0);
+  }
+
+  const char nul_input[] = {'1', '\0', '+', '2'};
+  pcalc_constexpr_result invalid{};
+  pcalc_constexpr_evaluate(nul_input, sizeof(nul_input), &invalid);
+  assert(invalid.status != 0);
+  assert(evaluate(std::string(65537, '1').c_str()).status != 0);
+
+  auto c_multiline = evaluateC("1 +\n2");
+  assert(c_multiline.status == 0);
+  assert(std::string(c_multiline.integer_value) == "3");
+  assert(evaluateC("[] { return 1; }()").status != 0);
+
+  pcalc_constexpr_result cxx14{};
+  const char *call = "[] { return 1; }()";
+  pcalc_constexpr_evaluate_language(PCALC_CONSTEXPR_CXX14, call,
+                                  std::strlen(call), &cxx14);
+  assert(cxx14.status != 0);
 
   auto c_cast = evaluateC("(unsigned char)270");
   assert(c_cast.status == 0);

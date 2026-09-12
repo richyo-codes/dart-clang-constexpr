@@ -81,6 +81,7 @@ enable_testing()
 add_executable(pcalc-constexpr-test tests/evaluator_test.cpp)
 target_link_libraries(pcalc-constexpr-test PRIVATE dart_clang_constexpr)
 add_test(NAME pcalc-constexpr-test COMMAND pcalc-constexpr-test)
+set_tests_properties(pcalc-constexpr-test PROPERTIES TIMEOUT 30)
 
 if(EMSCRIPTEN)
   add_executable(dart-clang-constexpr-wasm wasm/module.cpp)

@@ -50,8 +50,12 @@ values, booleans, and characters.
 
 Choose C99, C11, C17, C23, or C++11/14/17/20/23. The default is C++20.
 
-Inputs are individual expressions: user-defined functions, lambdas,
-standard-library calls, and full programs are outside the current subset.
+Inputs are individual expressions with numeric constant results. Invoked C++
+lambdas can contain local variables, loops, local types, and recursive calls,
+subject to the selected language standard. C++20 immediate (`consteval`) lambdas
+are supported. Multiline expressions and comments are accepted.
+Top-level declarations, directives, full programs, and runtime evaluation are
+not supported; standard-library headers are not supplied.
 See [expression semantics](docs/expression-semantics.md) for the detailed limits
 and planned target ABI support.
 

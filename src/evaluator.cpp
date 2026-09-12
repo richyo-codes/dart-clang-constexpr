@@ -5,7 +5,6 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/FileManager.h"
@@ -15,6 +14,7 @@
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/HeaderSearchOptions.h"
+#include "clang/Lex/Lexer.h"
 #include "clang/Lex/ModuleLoader.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
@@ -100,30 +100,42 @@ void fail(pcalc_constexpr_result &result, const std::string &message) {
   copyText(result.error_message, sizeof(result.error_message), message);
 }
 
-bool hasForbiddenSourceText(const std::string &expression) {
-  return expression.find_first_of(";{}#\n\r") != std::string::npos;
+// Validate the wrapper boundary using tokens, not characters: punctuation in
+// literals/comments is harmless, and lambda bodies may contain statements.
+bool isSingleExpression(const std::string &input,
+                        const LanguageConfiguration &configuration) {
+  clang::LangOptions options;
+  std::vector<std::string> includes;
+  clang::LangOptions::setLangDefaults(
+      options, configuration.language, llvm::Triple("wasm32-unknown-unknown"),
+      includes, configuration.standard);
+  clang::Lexer lexer(clang::SourceLocation(), options, input.data(),
+                     input.data(), input.data() + input.size());
+  std::vector<clang::tok::TokenKind> delimiters;
+  clang::Token token;
+  do {
+    lexer.LexFromRawLexer(token);
+    const auto kind = token.getKind();
+    if (kind == clang::tok::hash || kind == clang::tok::hashhash ||
+        kind == clang::tok::unknown)
+      return false;
+    if (kind == clang::tok::semi && delimiters.empty())
+      return false;
+    if (kind == clang::tok::l_paren || kind == clang::tok::l_square ||
+        kind == clang::tok::l_brace) {
+      delimiters.push_back(kind);
+    } else if (kind == clang::tok::r_paren || kind == clang::tok::r_square ||
+               kind == clang::tok::r_brace) {
+      const auto opening = kind == clang::tok::r_paren ? clang::tok::l_paren
+                           : kind == clang::tok::r_square ? clang::tok::l_square
+                                                        : clang::tok::l_brace;
+      if (delimiters.empty() || delimiters.back() != opening)
+        return false;
+      delimiters.pop_back();
+    }
+  } while (!token.is(clang::tok::eof));
+  return delimiters.empty();
 }
-
-class SubsetVisitor : public clang::RecursiveASTVisitor<SubsetVisitor> {
-public:
-  bool VisitStmt(clang::Stmt *statement) {
-    if (llvm::isa<clang::IntegerLiteral, clang::FloatingLiteral,
-                  clang::CharacterLiteral, clang::CXXBoolLiteralExpr,
-                  clang::ParenExpr, clang::UnaryOperator, clang::BinaryOperator,
-                  clang::ConditionalOperator, clang::ImplicitCastExpr,
-                  clang::CStyleCastExpr, clang::CXXStaticCastExpr>(statement))
-      return true;
-
-    error_ = std::string("unsupported expression node: ") +
-             statement->getStmtClassName();
-    return false;
-  }
-
-  const std::string &error() const { return error_; }
-
-private:
-  std::string error_;
-};
 
 clang::VarDecl *findResult(clang::ASTContext &context) {
   for (clang::Decl *decl : context.getTranslationUnitDecl()->decls()) {
@@ -176,7 +188,10 @@ public:
     const llvm::Triple triple(target_options_->Triple);
     clang::LangOptions::setLangDefaults(language_options_, configuration.language,
                                         triple, includes, configuration.standard);
-    language_options_.EnableNewConstInterp = true;
+    // LLVM 22's experimental interpreter can ignore the loop step limit.
+    // Keep native and WASM on the established evaluator until all toolchains
+    // include and verify upstream llvm/llvm-project#176150.
+    language_options_.EnableNewConstInterp = false;
     language_options_.ConstexprStepLimit = 100000;
 
     auto buffer = llvm::MemoryBuffer::getMemBufferCopy(
@@ -252,16 +267,21 @@ pcalc_constexpr_evaluate_language(int32_t language, const char *expression,
     return result->status;
   }
 
-  const std::string input(expression, expression_length);
-  if (hasForbiddenSourceText(input)) {
-    fail(*result,
-         "declarations, directives, and statement syntax are not allowed");
+  if (expression_length > 65536 ||
+      std::memchr(expression, '\0', expression_length)) {
+    fail(*result, "expression must be at most 65536 bytes without embedded NULs");
     return result->status;
   }
 
   const LanguageConfiguration *configuration = languageConfiguration(language);
   if (!configuration) {
     fail(*result, "unknown expression language standard");
+    return result->status;
+  }
+
+  const std::string input(expression, expression_length);
+  if (!isSingleExpression(input, *configuration)) {
+    fail(*result, "expected one expression without preprocessor directives or unmatched delimiters");
     return result->status;
   }
 
@@ -277,9 +297,9 @@ pcalc_constexpr_evaluate_language(int32_t language, const char *expression,
             "typedef int int32_t; typedef unsigned int uint32_t; "
             "typedef long long int64_t; typedef unsigned long long uint64_t; ";
   const std::string declaration =
-      is_cxx ? "constexpr auto __pcalc_result = (" + input + ");"
-             : "static const __typeof__((" + input + ")) __pcalc_result = (" +
-                   input + ");";
+      is_cxx ? "constexpr auto __pcalc_result = (\n" + input + "\n);"
+             : "static const __typeof__((\n" + input + "\n)) __pcalc_result = (\n" +
+                   input + "\n);";
   const std::string source = aliases + declaration;
 
   ParsedTranslationUnit translation_unit(source, *configuration);
@@ -296,12 +316,6 @@ pcalc_constexpr_evaluate_language(int32_t language, const char *expression,
   }
 
   clang::Expr *initializer = variable->getInit()->IgnoreImplicit();
-  SubsetVisitor visitor;
-  if (!visitor.TraverseStmt(initializer)) {
-    fail(*result, visitor.error());
-    return result->status;
-  }
-
   clang::Expr::EvalResult evaluated;
   if (!initializer->EvaluateAsConstantExpr(evaluated, context)) {
     fail(*result, "expression is not a supported constant expression");
