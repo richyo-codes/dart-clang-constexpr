@@ -34,6 +34,200 @@ namespace {
 
 constexpr const char *kResultName = "__pcalc_result";
 
+constexpr const char *kCxxCalculatorPrelude = R"cpp(
+namespace std {
+constexpr long double pi = 3.141592653589793238462643383279502884L;
+namespace numbers {
+constexpr long double pi = std::pi;
+}
+
+template <class T, T Minimum, T Maximum> struct integer_limits {
+  static constexpr T min() { return Minimum; }
+  static constexpr T lowest() { return Minimum; }
+  static constexpr T max() { return Maximum; }
+};
+template <class T> struct numeric_limits;
+template <> struct numeric_limits<signed char>
+    : integer_limits<signed char, -128, 127> {};
+template <> struct numeric_limits<unsigned char>
+    : integer_limits<unsigned char, 0, 255> {};
+template <> struct numeric_limits<short>
+    : integer_limits<short, -32768, 32767> {};
+template <> struct numeric_limits<unsigned short>
+    : integer_limits<unsigned short, 0, 65535> {};
+template <> struct numeric_limits<int>
+    : integer_limits<int, (-2147483647 - 1), 2147483647> {};
+template <> struct numeric_limits<unsigned int>
+    : integer_limits<unsigned int, 0U, 4294967295U> {};
+template <> struct numeric_limits<long>
+    : integer_limits<long, (-2147483647L - 1), 2147483647L> {};
+template <> struct numeric_limits<unsigned long>
+    : integer_limits<unsigned long, 0UL, 4294967295UL> {};
+template <> struct numeric_limits<long long>
+    : integer_limits<long long, (-9223372036854775807LL - 1),
+                     9223372036854775807LL> {};
+template <> struct numeric_limits<unsigned long long>
+    : integer_limits<unsigned long long, 0ULL, 18446744073709551615ULL> {};
+
+constexpr int abs(int value) { return value < 0 ? -value : value; }
+constexpr long abs(long value) { return value < 0 ? -value : value; }
+constexpr long long abs(long long value) { return value < 0 ? -value : value; }
+constexpr float abs(float value) { return value < 0 ? -value : value; }
+constexpr double abs(double value) { return value < 0 ? -value : value; }
+constexpr long double abs(long double value) { return value < 0 ? -value : value; }
+
+template <class T> constexpr T trunc_impl(T value) {
+  return static_cast<T>(static_cast<long long>(value));
+}
+template <class T> constexpr T ceil_impl(T value) {
+  return trunc_impl(value) < value ? trunc_impl(value) + 1 : trunc_impl(value);
+}
+template <class T> constexpr T floor_impl(T value) {
+  return trunc_impl(value) > value ? trunc_impl(value) - 1 : trunc_impl(value);
+}
+template <class T> constexpr T round_impl(T value) {
+  return value < 0 ? ceil_impl(value - T(0.5)) : floor_impl(value + T(0.5));
+}
+template <class T> constexpr T sqrt_impl(T value, T current, T previous) {
+  return current == previous ? current
+                             : sqrt_impl(value, (current + value / current) / 2,
+                                         current);
+}
+template <class T> constexpr T pow_unsigned(T base, unsigned long long exponent) {
+  return exponent == 0
+             ? T(1)
+             : exponent % 2 == 0
+                   ? pow_unsigned(base * base, exponent / 2)
+                   : base * pow_unsigned(base * base, exponent / 2);
+}
+template <class T> constexpr T pow_integral(T base, long long exponent) {
+  return exponent < 0 ? T(1) / pow_unsigned(base, -exponent)
+                      : pow_unsigned(base, exponent);
+}
+template <class T> constexpr T reduce_angle(T value) {
+  return value - T(2) * T(pi) * floor_impl((value + T(pi)) / (T(2) * T(pi)));
+}
+template <class T>
+constexpr T sin_series(T value, int iteration, T term, T sum) {
+  return iteration == 14
+             ? sum
+             : sin_series(value, iteration + 1,
+                          -term * value * value /
+                              T((2 * iteration) * (2 * iteration + 1)),
+                          sum - term * value * value /
+                                    T((2 * iteration) * (2 * iteration + 1)));
+}
+template <class T>
+constexpr T cos_series(T value, int iteration, T term, T sum) {
+  return iteration == 14
+             ? sum
+             : cos_series(value, iteration + 1,
+                          -term * value * value /
+                              T((2 * iteration - 1) * (2 * iteration)),
+                          sum - term * value * value /
+                                    T((2 * iteration - 1) * (2 * iteration)));
+}
+
+constexpr float ceil(float value) { return ceil_impl(value); }
+constexpr double ceil(double value) { return ceil_impl(value); }
+constexpr long double ceil(long double value) { return ceil_impl(value); }
+constexpr float floor(float value) { return floor_impl(value); }
+constexpr double floor(double value) { return floor_impl(value); }
+constexpr long double floor(long double value) { return floor_impl(value); }
+constexpr float trunc(float value) { return trunc_impl(value); }
+constexpr double trunc(double value) { return trunc_impl(value); }
+constexpr long double trunc(long double value) { return trunc_impl(value); }
+constexpr float round(float value) { return round_impl(value); }
+constexpr double round(double value) { return round_impl(value); }
+constexpr long double round(long double value) { return round_impl(value); }
+constexpr float sqrt(float value) {
+  return value < 0 ? 0.0F / 0.0F
+                   : value == 0 ? 0 : sqrt_impl(value, value, 0.0F);
+}
+constexpr double sqrt(double value) {
+  return value < 0 ? 0.0 / 0.0 : value == 0 ? 0 : sqrt_impl(value, value, 0.0);
+}
+constexpr long double sqrt(long double value) {
+  return value < 0 ? 0.0L / 0.0L : value == 0 ? 0 : sqrt_impl(value, value, 0.0L);
+}
+constexpr double pow(double base, int exponent) {
+  return pow_integral(base, exponent);
+}
+constexpr double pow(int base, int exponent) {
+  return pow_integral(static_cast<double>(base), exponent);
+}
+constexpr double pow(double base, double exponent) {
+  return exponent == trunc_impl(exponent)
+             ? pow_integral(base, static_cast<long long>(exponent))
+             : 0.0 / 0.0;
+}
+constexpr float pow(float base, int exponent) {
+  return pow_integral(base, exponent);
+}
+constexpr long double pow(long double base, int exponent) {
+  return pow_integral(base, exponent);
+}
+constexpr double sin(double value) {
+  return sin_series(reduce_angle(value), 1, reduce_angle(value),
+                    reduce_angle(value));
+}
+constexpr double cos(double value) {
+  return cos_series(reduce_angle(value), 1, 1.0, 1.0);
+}
+constexpr double tan(double value) { return sin(value) / cos(value); }
+constexpr float fmin(float lhs, float rhs) { return rhs < lhs ? rhs : lhs; }
+constexpr double fmin(double lhs, double rhs) { return rhs < lhs ? rhs : lhs; }
+constexpr long double fmin(long double lhs, long double rhs) { return rhs < lhs ? rhs : lhs; }
+constexpr float fmax(float lhs, float rhs) { return lhs < rhs ? rhs : lhs; }
+constexpr double fmax(double lhs, double rhs) { return lhs < rhs ? rhs : lhs; }
+constexpr long double fmax(long double lhs, long double rhs) { return lhs < rhs ? rhs : lhs; }
+
+template <class T> constexpr T min(const T &lhs, const T &rhs) {
+  return rhs < lhs ? rhs : lhs;
+}
+template <class T> constexpr T max(const T &lhs, const T &rhs) {
+  return lhs < rhs ? rhs : lhs;
+}
+template <class T>
+constexpr T clamp(const T &value, const T &low, const T &high) {
+  return value < low ? low : high < value ? high : value;
+}
+} // namespace std
+
+using std::abs;
+using std::ceil;
+using std::floor;
+using std::trunc;
+using std::round;
+using std::sqrt;
+using std::pow;
+using std::sin;
+using std::cos;
+using std::tan;
+using std::fmin;
+using std::fmax;
+constexpr long double pi = std::pi;
+#define CHAR_BIT 8
+#define INT8_MIN (-127 - 1)
+#define INT8_MAX 127
+#define UINT8_MAX 255U
+#define INT16_MIN (-32767 - 1)
+#define INT16_MAX 32767
+#define UINT16_MAX 65535U
+#define INT32_MIN (-2147483647 - 1)
+#define INT32_MAX 2147483647
+#define UINT32_MAX 4294967295U
+#define INT64_MIN (-9223372036854775807LL - 1)
+#define INT64_MAX 9223372036854775807LL
+#define UINT64_MAX 18446744073709551615ULL
+#define INT_MIN INT32_MIN
+#define INT_MAX INT32_MAX
+#define UINT_MAX UINT32_MAX
+#define LLONG_MIN INT64_MIN
+#define LLONG_MAX INT64_MAX
+#define ULLONG_MAX UINT64_MAX
+)cpp";
+
 struct LanguageConfiguration {
   bool is_cxx;
   clang::Language language;
@@ -207,6 +401,8 @@ public:
         preprocessor_options_, diagnostics_, language_options_, source_manager_,
         *header_search_, module_loader_);
     preprocessor_->Initialize(*target_);
+    preprocessor_->getBuiltinInfo().initializeBuiltins(
+        preprocessor_->getIdentifierTable(), language_options_);
     context_ = std::make_unique<clang::ASTContext>(
         language_options_, source_manager_, preprocessor_->getIdentifierTable(),
         preprocessor_->getSelectorTable(), preprocessor_->getBuiltinInfo(),
@@ -296,11 +492,12 @@ pcalc_constexpr_evaluate_language(int32_t language, const char *expression,
             "typedef short int16_t; typedef unsigned short uint16_t; "
             "typedef int int32_t; typedef unsigned int uint32_t; "
             "typedef long long int64_t; typedef unsigned long long uint64_t; ";
+  const std::string prelude = is_cxx ? kCxxCalculatorPrelude : "";
   const std::string declaration =
       is_cxx ? "constexpr auto __pcalc_result = (\n" + input + "\n);"
              : "static const __typeof__((\n" + input + "\n)) __pcalc_result = (\n" +
                    input + "\n);";
-  const std::string source = aliases + declaration;
+  const std::string source = aliases + prelude + declaration;
 
   ParsedTranslationUnit translation_unit(source, *configuration);
   if (!translation_unit.valid()) {

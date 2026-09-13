@@ -40,9 +40,26 @@ For example, this returns 120:
 The selected language still controls legality. C rejects C++ lambdas; a lambda
 call is not a constant expression in C++14. A runtime-only call or invalid
 constant operation is rejected, never evaluated by executing native code.
-Standard-library headers are not provided. User-defined functions can be local
-lambdas or constexpr members of local types; top-level function definitions are
-not accepted.
+Standard-library headers are not provided. A portable calculator prelude exposes
+`abs`, `ceil`, `floor`, `trunc`, `round`, `sqrt`, `pow`, `sin`, `cos`, `tan`,
+`fmin`, and `fmax` globally and
+in `std`, plus `std::min`, `std::max`, and `std::clamp`. Their portable
+constant-expression implementations provide calculator values directly and
+the STL-style helpers follow their ordinary comparison semantics while
+returning by value. This deliberately small surface is compiled into both
+native and WASM evaluators and does not depend on host libc++ headers. User-defined
+functions can be local lambdas or constexpr members of local types; top-level
+function definitions are not accepted.
+
+The constants `pi`, `std::pi`, and `std::numbers::pi` are available. `pow`
+currently accepts integral exponents, including negative exponents for
+floating-point bases. Fractional exponents are rejected.
+
+`sizeof` uses Clang's selected target model. The prelude also supplies
+`INT8_MIN`/`INT8_MAX` through `INT64_MIN`/`INT64_MAX`, the corresponding
+`UINT*_MAX` constants, `INT_MIN`, `INT_MAX`, `UINT_MAX`, `LLONG_MIN`,
+`LLONG_MAX`, `ULLONG_MAX`, and integer specializations of
+`std::numeric_limits`.
 
 ## Input boundary and evaluation limits
 

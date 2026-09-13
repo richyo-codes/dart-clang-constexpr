@@ -46,6 +46,52 @@ for (let language = 0; language <= 10; language++) {
 }
 assert.notEqual(evaluate(1, '1 +').status, 0);
 
+for (const [expression, expected] of [
+  ['abs(-42)', '42'],
+  ['ceil(4.2)', '5'],
+  ['std::floor(4.8)', '4'],
+  ['round(4.5)', '5'],
+  ['sqrt(81.0)', '9'],
+  ['pow(2, 10)', '1024'],
+  ['std::pow(2.0, -3)', '0.125'],
+  ['sin(pi / 2)', '1'],
+  ['cos(0.0)', '1'],
+  ['tan(std::numbers::pi / 4)', '1'],
+  ['std::min(9, 3)', '3'],
+  ['std::max(9, 3)', '9'],
+  ['std::clamp(99, 0, 10)', '10'],
+  ['INT_MAX', '2147483647'],
+  ['UINT64_MAX', '18446744073709551615'],
+  ['std::numeric_limits<int8_t>::max()', '127'],
+  ['sizeof(uint64_t)', '8'],
+]) {
+  const result = evaluate(1, expression);
+  assert.equal(result.status, 0, result.errorMessage);
+  assert.ok(
+    Math.abs(Number(result.displayText) - Number(expected)) < 1e-12,
+    expression,
+  );
+}
+
+for (const [expression, expectedValue] of [
+  ['abs(-42)', '42'],
+  ['std::abs(-42.5)', '42.5'],
+  ['ceil(4.2)', '5'],
+  ['std::floor(4.8)', '4'],
+  ['round(4.5)', '5'],
+  ['trunc(-4.8)', '-4'],
+  ['sqrt(81.0)', '9'],
+  ['fmin(7.5, 2.5)', '2.5'],
+  ['std::fmax(7.5, 2.5)', '7.5'],
+  ['std::min(9, 3)', '3'],
+  ['std::max(9, 3)', '9'],
+  ['std::clamp(99, 0, 10)', '10'],
+]) {
+  const result = evaluate(1, expression);
+  assert.equal(result.status, 0, result.errorMessage);
+  assert.equal(result.displayText, expectedValue, expression);
+}
+
 for (const expression of [
   '[] { int n = 1; for (int i = 2; i <= 5; ++i) n *= i; return n; }()',
   '[] { auto f = [](auto self, int n) -> int { return n < 2 ? 1 : n * self(self, n-1); }; return f(f, 5); }()',

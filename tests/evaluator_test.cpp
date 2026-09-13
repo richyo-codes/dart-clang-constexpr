@@ -41,6 +41,39 @@ int main() {
   assert(wide.status == 0);
   assert(std::string(wide.integer_value) == "9223372036854775808");
 
+  for (const auto &[expression, expected] : {
+           std::pair{"abs(-42)", "42"},
+           std::pair{"std::abs(-42.5)", "42.5"},
+           std::pair{"ceil(4.2)", "5"},
+           std::pair{"std::floor(4.8)", "4"},
+           std::pair{"round(4.5)", "5"},
+           std::pair{"trunc(-4.8)", "-4"},
+           std::pair{"sqrt(81.0)", "9"},
+           std::pair{"pow(2, 10)", "1024"},
+           std::pair{"std::pow(2.0, -3)", "0.125"},
+           std::pair{"sin(pi / 2)", "1"},
+           std::pair{"cos(0.0)", "1"},
+           std::pair{"tan(pi / 4)", "1"},
+           std::pair{"fmin(7.5, 2.5)", "2.5"},
+           std::pair{"std::fmax(7.5, 2.5)", "7.5"},
+           std::pair{"std::min(9, 3)", "3"},
+           std::pair{"std::max(9, 3)", "9"},
+           std::pair{"std::clamp(99, 0, 10)", "10"},
+           std::pair{"INT_MAX", "2147483647"},
+           std::pair{"UINT64_MAX", "18446744073709551615"},
+           std::pair{"std::numeric_limits<int8_t>::max()", "127"},
+           std::pair{"std::numeric_limits<unsigned long long>::max()",
+                     "18446744073709551615"},
+           std::pair{"sizeof(uint64_t)", "8"},
+       }) {
+    auto value = evaluate(expression);
+    assert(value.status == 0);
+    const std::string actual = value.kind == PCALC_CONSTEXPR_FLOATING
+                                   ? std::to_string(value.floating_value)
+                                   : std::string(value.integer_value);
+    assert(actual.rfind(expected, 0) == 0);
+  }
+
   // A closure alone is not a numeric calculator result.
   for (const char *lambda : {
            "[]{}",
